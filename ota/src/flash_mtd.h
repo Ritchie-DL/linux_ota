@@ -53,4 +53,8 @@ int mtd_write_close(MtdWriteContext *);
 
 int mtd_get_flash_info(size_t *total_size, size_t *block_size, size_t *page_size);
 
+#if defined (__cplusplus)
+}
+#endif
+
 #endif //__FLASH_MTD_H

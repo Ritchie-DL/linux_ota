@@ -62,13 +62,13 @@ static MtdState g_mtd_state = {
 
 #define MTD_PROC_FILENAME   "/proc/mtd"
 
-int mtd_scan_partitions()
+int mtd_scan_partitions(void)
 {
     char buf[2048] = {0};
-    const char *bufp;
-    int fd;
-    int i;
-    ssize_t nbytes;
+    const char *bufp = NULL;
+    int fd = -1;
+    int i = 0;
+    ssize_t nbytes = 0;
 
     if (g_mtd_state.partitions == NULL) {
         const int nump = 32;

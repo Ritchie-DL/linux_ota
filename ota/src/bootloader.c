@@ -298,7 +298,8 @@ static int writeMisc_block(char *buf, int offset, int size) {
     return 0;
 }
 
-static int readMisc_block(char *buf, int offset, int size) {
+static int readMisc_block(char *buf, int offset, int size)
+{
     wait_for_device(MISC_PARTITION_NAME_BLOCK);
     FILE* f = fopen(MISC_PARTITION_NAME_BLOCK, "rb");
     if (f == NULL) {

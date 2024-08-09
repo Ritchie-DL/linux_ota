@@ -7,6 +7,8 @@
 
 #include "bootloader.h"
 #include "my_debug.h"
+#include "rk_flash.h"
+#include "rk_ab_meta.h"
 
 typedef enum{
     RK_UPGRADE_FINISHED,
@@ -40,9 +42,44 @@ static const struct option engine_options[] = {
         { NULL, 0, NULL, 0 },
 };
 
+int test_read_misc(void)
+{
+#define MISC_PARTITION_NAME_BLOCK "/dev/block/by-name/misc"
+    int ret = 0;
+    AvbABData info_ab = {0};
+
+    int fd = rk_block_open(MISC_PARTITION_NAME_BLOCK);
+    if (fd < 0) {
+        dbg_err("rk_block_open failed\n");
+        return -1;
+    }
+    ret = rk_block_read(fd, MISC_OFFSET, (uint8_t *)&info_ab, sizeof(info_ab));
+    if (ret < 0) {
+        dbg_err("rk_block_read failed\n");
+        rk_block_close(fd);
+        return -1;
+    }
+    rk_block_close(fd);
+    
+    dbg_info("magic : %s.\n", info_ab.magic);
+    dbg_info("version_major = %d.\n", info_ab.version_major);
+    dbg_info("version_minor = %d.\n", info_ab.version_minor);
+    for (int i = 0; i < 2; i++) {
+        dbg_info("slot.[%d]->priority = %d.\n",        i, info_ab.slots[i].priority);
+        dbg_info("slot.[%d]->successful_boot = %d.\n", i, info_ab.slots[i].successful_boot);
+        dbg_info("slot.[%d]->tries_remaining = %d.\n", i, info_ab.slots[i].tries_remaining);
+    }
+
+    dbg_info("last_boot : %d.\n", info_ab.last_boot);
+    dbg_info("local crc32: %x.\n", info_ab.crc32);
+    dbg_info("sizeof(struct AvbABData) = %ld\n", sizeof(struct AvbABData));
+
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
-    dbg_info("*** rk_ota: Version V1.0.0 ***.\n");
+    int ret = 0;
     int arg;
     char *tar_path = NULL;
     char *save_dir = NULL;
@@ -51,27 +88,48 @@ int main(int argc, char *argv[])
     char *extra_part = NULL;
     bool is_reboot = false;
 
+    dbg_info("\n");
 
+    test_read_misc();
     while ((arg = getopt_long(argc, argv, "", engine_options, NULL)) != -1) {
         switch (arg) {
-            case 'm': misc_func = optarg; continue;
-            case 't' + 'p': tar_path = optarg; continue;
-            case 's' + 'p': save_dir = optarg; continue;
-            case 'p': partition = optarg; continue;
-            case 'e' + 'p': extra_part = optarg; continue;
-            case 'r': is_reboot = true; continue;
-            case 'h': usage(); break;
+            case 'm':
+                misc_func = optarg;
+                continue;
+            case 't' + 'p':
+                tar_path = optarg;
+                continue;
+            case 's' + 'p':
+                save_dir = optarg;
+                continue;
+            case 'p':
+                partition = optarg;
+                continue;
+            case 'e' + 'p':
+                extra_part = optarg;
+                continue;
+            case 'r':
+                is_reboot = true;
+                continue;
+            case 'h':
+                usage();
+                break;
             case '?':
                 dbg_err("Invalid command argument\n");
+                usage();
                 continue;
         }
     }
 
     if (misc_func != NULL) {
         if (strcmp(misc_func, "now") == 0) {
-            if (setSlotSucceed() ==0) {
-                m_status = RK_UPGRADE_FINISHED;
+//            ret = setSlotSucceed();
+            ret = rk_ab_meta_active_current_slot();
+            if (ret < 0) {
+                dbg_err("\n");
             }
+            m_status = RK_UPGRADE_FINISHED;
+            rk_ab_meta_active_another_slot();
         } else if (strcmp(misc_func, "other") == 0) {
             if (setSlotActivity() == 0) {
                 m_status = RK_UPGRADE_FINISHED;

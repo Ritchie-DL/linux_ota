@@ -36,9 +36,12 @@ SET(CMAKE_C_COMPILER 				${CROSS_PREFIX}gcc)
 ADD_COMPILE_DEFINITIONS(_GNU_SOURCE)
 
 INCLUDE_DIRECTORIES(
-        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/ab_meta/include
+        ${PROJECT_SOURCE_DIR}/flash/include
+        ${PROJECT_SOURCE_DIR}/ota/include
         ${PROJECT_SOURCE_DIR}/test/app_log/include
         ${PROJECT_SOURCE_DIR}/test/openssl/include
+        ${PROJECT_SOURCE_DIR}/test/utils/include
 )
 
 LINK_DIRECTORIES(
@@ -46,12 +49,16 @@ LINK_DIRECTORIES(
 )
 
 FILE(GLOB_RECURSE SRC_LISTS
-        ${PROJECT_SOURCE_DIR}/src/*.c
-        ${PROJECT_SOURCE_DIR}/app_log/src/*.c
-        ${PROJECT_SOURCE_DIR}/test/*.c
+        ${PROJECT_SOURCE_DIR}/ota/src/*.c
+        ${PROJECT_SOURCE_DIR}/flash/src/*.c
+        ${PROJECT_SOURCE_DIR}/ab_meta/src/*.c
+        ${PROJECT_SOURCE_DIR}/test/app_log/src/*.c
+        ${PROJECT_SOURCE_DIR}/test/utils/src/*.c
+        ${PROJECT_SOURCE_DIR}/test/main.c
 )
 
-add_executable(${target_bin} ${SRC_LISTS})
+ADD_EXECUTABLE(${target_bin} ${SRC_LISTS})
+
 TARGET_LINK_LIBRARIES(${target_bin}
         ssl
         crypto
