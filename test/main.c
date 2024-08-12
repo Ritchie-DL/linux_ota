@@ -48,18 +48,18 @@ int test_read_misc(void)
     int ret = 0;
     AvbABData info_ab = {0};
 
-    int fd = rk_block_open(MISC_PARTITION_NAME_BLOCK);
+    int fd = dl_flash_open_by_name(MISC_PARTITION_NAME_BLOCK);
     if (fd < 0) {
-        dbg_err("rk_block_open failed\n");
+        dbg_err("dl_flash_open_by_name failed\n");
         return -1;
     }
-    ret = rk_block_read(fd, MISC_OFFSET, (uint8_t *)&info_ab, sizeof(info_ab));
+    ret = dl_flash_read(fd, MISC_OFFSET, (uint8_t *)&info_ab, sizeof(info_ab));
     if (ret < 0) {
         dbg_err("rk_block_read failed\n");
-        rk_block_close(fd);
+        dl_flash_close(fd);
         return -1;
     }
-    rk_block_close(fd);
+    dl_flash_close(fd);
     
     dbg_info("magic : %s.\n", info_ab.magic);
     dbg_info("version_major = %d.\n", info_ab.version_major);

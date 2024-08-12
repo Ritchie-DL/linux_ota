@@ -6,8 +6,8 @@ Created by Ritchie TangWei on 2024/8/9.
 
 #include <stdint.h>
 #include "my_debug.h"
-#include "rk_flash.h"
 #include "my_types.h"
+#include "rk_flash.h"
 
 #define AB_META_BLOCK_PARTITION_NAME "/dev/block/by-name/misc"
 #define META_DATA_OFFSET 2048
@@ -113,23 +113,23 @@ static int ab_meta_read_data(rk_ab_meta_data_t *data)
         return -1;
     }
 
-    int fd = rk_block_open(AB_META_BLOCK_PARTITION_NAME);
+    int fd = dl_flash_open_by_name(AB_META_BLOCK_PARTITION_NAME);
     if (fd < 0) {
-        dbg_err("rk_block_open failed\n");
+        dbg_err("dl_flash_open_by_name failed\n");
         return -1;
     }
-    ret = rk_block_read(fd, META_DATA_OFFSET, (uint8_t *) data, sizeof(rk_ab_meta_data_t));
+    ret = dl_flash_read(fd, META_DATA_OFFSET, (uint8_t *) data, sizeof(rk_ab_meta_data_t));
     if (ret < 0) {
-        dbg_err("rk_block_read failed\n");
-        rk_block_close(fd);
+        dbg_err("dl_flash_read failed\n");
+        dl_flash_close(fd);
         return -1;
     }
-    rk_block_close(fd);
+    dl_flash_close(fd);
 
     return ret;
 }
 
-static int ab_meta_write_data(rk_ab_meta_data_t *data)
+static int ab_meta_write_data(const rk_ab_meta_data_t *data)
 {
     int ret = 0;
 
@@ -137,18 +137,18 @@ static int ab_meta_write_data(rk_ab_meta_data_t *data)
         return -1;
     }
 
-    int fd = rk_block_open(AB_META_BLOCK_PARTITION_NAME);
+    int fd = dl_flash_open_by_name(AB_META_BLOCK_PARTITION_NAME);
     if (fd < 0) {
-        dbg_err("rk_block_open failed\n");
+        dbg_err("dl_flash_open_by_name failed\n");
         return -1;
     }
-    ret = rk_block_write(fd, META_DATA_OFFSET, (uint8_t *) data, sizeof(rk_ab_meta_data_t));
+    ret = dl_flash_write(fd, META_DATA_OFFSET, (uint8_t *)data, sizeof(rk_ab_meta_data_t));
     if (ret < 0) {
-        dbg_err("rk_block_write failed\n");
-        rk_block_close(fd);
+        dbg_err("dl_flash_write failed\n");
+        dl_flash_close(fd);
         return -1;
     }
-    rk_block_close(fd);
+    dl_flash_close(fd);
 
     return ret;
 }
@@ -179,7 +179,7 @@ static int get_lastboot(const rk_ab_meta_data_t *ab_data)
 static int get_current_slot(const rk_ab_meta_data_t *ab_data)
 {
     static int last_slot_index = -1;
-    int slot_index_to_boot;
+    int slot_index_to_boot = 0;
     int ret = 0;
 
     if (slot_is_bootable(&ab_data->slots[0]) && slot_is_bootable(&ab_data->slots[1])) {
@@ -207,7 +207,7 @@ static int get_current_slot(const rk_ab_meta_data_t *ab_data)
 
     if (slot_index_to_boot == 0) {
         ret = 0;
-    } else if (slot_index_to_boot == 1) {
+    } else {
         ret = 1;
     }
 
