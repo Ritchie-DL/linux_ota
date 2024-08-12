@@ -7,7 +7,7 @@ Created by Ritchie TangWei on 2024/8/9.
 #include <stdint.h>
 #include "my_debug.h"
 #include "my_types.h"
-#include "rk_flash.h"
+#include "dl_flash.h"
 
 #define AB_META_BLOCK_PARTITION_NAME "/dev/block/by-name/misc"
 #define META_DATA_OFFSET 2048
