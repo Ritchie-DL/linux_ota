@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "flash_mtd.h"
+#include "mtd_flash.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -271,6 +271,8 @@ int mtd_partition_info(const MtdPartition *partition, size_t *total_size, size_t
 
 MtdReadContext *mtd_read_partition(const MtdPartition *partition)
 {
+    char dev_name[32] = {0};
+
     MtdReadContext *ctx = (MtdReadContext*) malloc(sizeof(MtdReadContext));
     if (ctx == NULL) return NULL;
 
@@ -280,13 +282,12 @@ MtdReadContext *mtd_read_partition(const MtdPartition *partition)
         return NULL;
     }
 
-    char mtddevname[32];
-	sprintf(mtddevname, "/dev/mtd%d", partition->device_index);
-    //sprintf(mtddevname, "/dev/mtd/mtd%d", partition->device_index);
-    ctx->fd = open(mtddevname, O_RDONLY);
+	sprintf(dev_name, "/dev/mtd%d", partition->device_index);
+    ctx->fd = open(dev_name, O_RDONLY);
     if (ctx->fd < 0) {
-        free(ctx);
+        dbg_err("open %s failed\n", dev_name);
         free(ctx->buffer);
+        free(ctx);
         return NULL;
     }
 

@@ -31,7 +31,7 @@
 #include "common.h"
 
 #include "md5sum.h"
-#include "flash_mtd.h"
+#include "../../flash/src/mtd_flash.h"
 // ------------------------------------
 // for misc partitions on block devices
 // ------------------------------------

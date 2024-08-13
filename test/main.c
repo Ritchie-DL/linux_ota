@@ -48,9 +48,10 @@ int test_read_misc(void)
     int ret = 0;
     AvbABData info_ab = {0};
 
+    dl_flash_init();
     int fd = dl_flash_open_by_name(MISC_PARTITION_NAME_BLOCK);
     if (fd < 0) {
-        dbg_err("dl_flash_open_by_name failed\n");
+        dbg_err("dl_flash_open_by_name failed, fd=%d\n", fd);
         return -1;
     }
     ret = dl_flash_read(fd, MISC_OFFSET, (uint8_t *)&info_ab, sizeof(info_ab));
@@ -73,6 +74,8 @@ int test_read_misc(void)
     dbg_info("last_boot : %d.\n", info_ab.last_boot);
     dbg_info("local crc32: %x.\n", info_ab.crc32);
     dbg_info("sizeof(struct AvbABData) = %ld\n", sizeof(struct AvbABData));
+
+    dl_flash_deinit();
 
     return 0;
 }

@@ -68,7 +68,7 @@ int rk_block_read(int fd, uint64_t offset, uint8_t *dest_buf, uint64_t dest_size
         return -1;
     }
     if (fd < 0) {
-        dbg_err("fd=%d\n", fd);
+        dbg_err("invalid fd=%d\n", fd);
         return -1;
     }
 
@@ -80,7 +80,7 @@ int rk_block_read(int fd, uint64_t offset, uint8_t *dest_buf, uint64_t dest_size
 
     int count = read(fd, dest_buf, dest_size);
     if (count != dest_size) {
-        dbg_err("Failed reading failed(%s)\n", strerror(errno));
+        dbg_err("count=%#X, dest_size=%#X, reading failed(%s)\n", count, dest_size, strerror(errno));
         return -1;
     }
 

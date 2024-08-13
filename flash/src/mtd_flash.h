@@ -2,8 +2,8 @@
 Created by Ritchie TangWei on 2024/8/8.
 */
 
-#ifndef __FLASH_MTD_H
-#define __FLASH_MTD_H
+#ifndef __MTD_FLASH_H
+#define __MTD_FLASH_H
 
 #include <sys/types.h>  // for size_t, etc.
 
@@ -57,4 +57,4 @@ int mtd_get_flash_info(size_t *total_size, size_t *block_size, size_t *page_size
 }
 #endif
 
-#endif //__FLASH_MTD_H
+#endif //__MTD_FLASH_H
