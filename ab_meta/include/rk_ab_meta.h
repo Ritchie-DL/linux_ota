@@ -61,7 +61,9 @@ typedef struct {
 } rk_ab_meta_data_t;
 
 int rk_ab_meta_read_data(rk_ab_meta_data_t *data);
+int rk_ab_meta_get_running_slot(void);
 int rk_ab_meta_get_current_slot(void);
+char rk_ab_meta_get_suffix_by_slot(int slot);
 int rk_ab_meta_active_current_slot(void);
 int rk_ab_meta_active_another_slot(void);
 

@@ -12,8 +12,6 @@ Created by Ritchie TangWei on 2024/8/12.
 
 #include "my_debug.h"
 
-#define PROC_CMDLINE    "/proc/cmdline"
-
 #define FLASH_CHECK_INIT()      if (g_flash_ctrl.is_init == false) { \
                                     dbg_err("flash not init\n"); \
                                     return -1;               \
@@ -44,9 +42,9 @@ static dl_flash_type_t get_flash_type(void)
 {
     int ret = 0;
     char param[2048] = {0};
-    int fd = open(PROC_CMDLINE, O_RDONLY);
+    int fd = open(RK_FLASH_PROC_CMDLINE, O_RDONLY);
     if (fd < 0) {
-        dbg_err("open %s failed\n", PROC_CMDLINE);
+        dbg_err("open %s failed\n", RK_FLASH_PROC_CMDLINE);
         return -1;
     }
     ret = read(fd, (char*)param, 2048);
@@ -73,6 +71,11 @@ int dl_flash_init(void)
 {
     int ret = 0;
     dl_flash_type_t flash_type = get_flash_type();
+
+    if (g_flash_ctrl.is_init == true) {
+        dbg_lo("flash has been inited\n");
+        return 0;
+    }
 
     switch (flash_type) {
         case DL_FLASH_EMMC:

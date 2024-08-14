@@ -10,6 +10,7 @@ extern "C" {
 #endif
 
 int rk_upgrade_init(const char *temp_dir);
+int rk_upgrade_packet(const char *packet);
 int rk_upgrade_deinit(void);
 
 #if defined (__cplusplus)

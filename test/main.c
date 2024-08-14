@@ -9,6 +9,7 @@
 #include "my_debug.h"
 #include "dl_flash.h"
 #include "rk_ab_meta.h"
+#include "dl_upgrade.h"
 
 typedef enum{
     RK_UPGRADE_FINISHED,
@@ -48,7 +49,6 @@ int test_read_misc(void)
     int ret = 0;
     AvbABData info_ab = {0};
 
-    dl_flash_init();
     int fd = dl_flash_open_by_name(MISC_PARTITION_NAME_BLOCK);
     if (fd < 0) {
         dbg_err("dl_flash_open_by_name failed, fd=%d\n", fd);
@@ -75,13 +75,54 @@ int test_read_misc(void)
     dbg_info("local crc32: %x.\n", info_ab.crc32);
     dbg_info("sizeof(struct AvbABData) = %ld\n", sizeof(struct AvbABData));
 
-    dl_flash_deinit();
 
     return 0;
 }
 
 int main(int argc, char *argv[])
 {
+    dbg_info("\n");
+
+#if 1
+    int ret = 0;
+    char opt = 0;
+
+    dl_log_config(true, true, HI_LOG_LEVEL_DEBUG);
+    dl_flash_init();
+
+    if ((argc > 1) && (argv[1][0] == '-')) {
+        opt = argv[1][1];
+    }
+    switch (opt) {
+        case 'g':
+            rk_ab_meta_get_current_slot();
+            break;
+
+        case 'r':
+            test_read_misc();
+            break;
+
+        case 'u':
+            if (argc != 4) {
+                dbg_err("usage: ./test -u packet_file.tar temp_dir\n");
+                break;
+            }
+            rk_upgrade_init(argv[3]);
+
+            rk_upgrade_packet(argv[2]);
+            break;
+
+        case 's':
+            dbg_info("try active another slot\n");
+            rk_ab_meta_active_another_slot();
+            break;
+
+        default:
+            rk_ab_meta_get_running_slot();
+            break;
+    }
+    dl_flash_deinit();
+#else
     int ret = 0;
     int arg;
     char *tar_path = NULL;
@@ -91,9 +132,6 @@ int main(int argc, char *argv[])
     char *extra_part = NULL;
     bool is_reboot = false;
 
-    dbg_info("\n");
-
-    test_read_misc();
     while ((arg = getopt_long(argc, argv, "", engine_options, NULL)) != -1) {
         switch (arg) {
             case 'm':
@@ -154,6 +192,7 @@ int main(int argc, char *argv[])
         reboot(RB_AUTOBOOT);
         // system(" echo b > /proc/sysrq-trigger ");
     }
+#endif
 
     return m_status;
 }

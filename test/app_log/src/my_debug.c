@@ -80,21 +80,6 @@ void dl_log_config(bool log_on, bool log_time, dl_log_level_t level)
     g_log_en = log_on;
     g_log_time_en = log_time;
     g_en_log_level = level;
-
-    if (!log_on) {
-        setenv("MQTT_C_CLIENT_TRACE", "OFF", 1);
-        setenv("MQTT_C_CLIENT_TRACE_LEVEL", "OFF", 1);
-        return;
-    }
-    if (level <= HI_LOG_LEVEL_ERROR) {
-        setenv(rkmedia_name, "ERROR", 1);
-    } else if (level <= HI_LOG_LEVEL_INFO) {
-        setenv(rkmedia_name, "WARN", 1);
-    } else if (level <= HI_LOG_LEVEL_RAW) {
-        setenv(rkmedia_name, "INFO", 1);
-    } else if (level > HI_LOG_LEVEL_DEBUG) {
-        setenv(rkmedia_name, "DBG", 1);
-    }
 }
 
 void print_n_byte(const uint8_t *str, uint32_t len)

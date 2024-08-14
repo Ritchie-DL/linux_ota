@@ -9,8 +9,9 @@ Created by Ritchie TangWei on 2024/8/9.
 #include "my_types.h"
 #include "dl_flash.h"
 
-#define AB_META_BLOCK_PARTITION_NAME "/dev/block/by-name/misc"
+#define AB_META_BLOCK_PARTITION_NAME    "/dev/block/by-name/misc"
 #define META_DATA_OFFSET 2048
+#define AB_META_SLOT_SUFFIX             "android_slotsufix="
 
 static uint32_t g_ab_misc_crc32_tab[] = {
         0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f,
@@ -168,7 +169,7 @@ int rk_ab_meta_read_data(rk_ab_meta_data_t *data)
 
 static bool slot_is_bootable(const rk_ab_slot_data_t *slot)
 {
-    return slot->priority > 0 && (slot->successful_boot || (slot->tries_remaining > 0));
+    return (slot->priority > 0) && ((slot->successful_boot > 0) || (slot->tries_remaining > 0));
 }
 
 static int get_lastboot(const rk_ab_meta_data_t *ab_data)
@@ -176,22 +177,30 @@ static int get_lastboot(const rk_ab_meta_data_t *ab_data)
     return ab_data->last_boot;
 }
 
+char rk_ab_meta_get_suffix_by_slot(int slot)
+{
+    return (slot == 0) ? 'a' : 'b';
+}
+
 static int get_current_slot(const rk_ab_meta_data_t *ab_data)
 {
     static int last_slot_index = -1;
-    int slot_index_to_boot = 0;
+    int reboot_slot = 0;
     int ret = 0;
 
     if (slot_is_bootable(&ab_data->slots[0]) && slot_is_bootable(&ab_data->slots[1])) {
         if (ab_data->slots[1].priority > ab_data->slots[0].priority) {
-            slot_index_to_boot = 1;
+            reboot_slot = 1;
         } else {
-            slot_index_to_boot = 0;
+            reboot_slot = 0;
         }
+        dbg_lo("reboot_slot=%d\n", reboot_slot);
     } else if (slot_is_bootable(&ab_data->slots[0])) {
-        slot_index_to_boot = 0;
+        reboot_slot = 0;
+        dbg_lo("reboot_slot=%d\n", reboot_slot);
     } else if (slot_is_bootable(&ab_data->slots[1])) {
-        slot_index_to_boot = 1;
+        reboot_slot = 1;
+        dbg_lo("reboot_slot=%d\n", reboot_slot);
     } else {
         dbg_warn("No bootable slots found, use last boot slot.\n");
         if (get_lastboot(ab_data) == 0) {
@@ -205,18 +214,56 @@ static int get_current_slot(const rk_ab_meta_data_t *ab_data)
         }
     }
 
-    if (slot_index_to_boot == 0) {
+    if (reboot_slot == 0) {
         ret = 0;
     } else {
         ret = 1;
     }
 
-    if (last_slot_index != slot_index_to_boot) {
-        last_slot_index = slot_index_to_boot;
-        dbg_info("A/B-slot: %c, successful: %d, tries-remain: %d\n", (ret == 0) ? 'A' : 'B',
-               ab_data->slots[slot_index_to_boot].successful_boot, ab_data->slots[slot_index_to_boot].tries_remaining);
+    if (last_slot_index != reboot_slot) {
+        last_slot_index = reboot_slot;
+        dbg_lo("in meta partition: %c_slot is active, successful: %d, tries-remain: %d\n",
+               rk_ab_meta_get_suffix_by_slot(ret), ab_data->slots[reboot_slot].successful_boot,
+               ab_data->slots[reboot_slot].tries_remaining);
     }
 out:
+    return ret;
+}
+
+int rk_ab_meta_get_running_slot(void)
+{
+    int ret = 0;
+    char buf[512] = {0};
+
+    FILE *fp = fopen(RK_FLASH_PROC_CMDLINE, "r");
+    if (assert_ptr(fp)) {
+        return -1;
+    }
+    size_t read_len = fread(buf, 1, sizeof(buf) - 1, fp);
+    fclose(fp);
+    if (read_len == 0) {
+        dbg_err("Failed to read %s\n", RK_FLASH_PROC_CMDLINE);
+        return 0;
+    }
+    if (read_len < ARRAY_SIZE(buf)) {
+        buf[read_len] = '\0';
+    }
+    const char *slot_pos = strstr(buf, AB_META_SLOT_SUFFIX);
+    ret = -1;
+    if (slot_pos != NULL) {
+        slot_pos += strlen(AB_META_SLOT_SUFFIX);
+        if (strncmp(slot_pos, "_a", 2) == 0) {
+            ret = 0;
+        } else if (strncmp(slot_pos, "_b", 2) == 0) {
+            ret = 1;
+        }
+    }
+    if (ret < 0) {
+        dbg_err("slot not found, may not be a A/B system\n");
+    } else {
+        dbg_info("current running slot is slot_%c\n", rk_ab_meta_get_suffix_by_slot(ret));
+    }
+
     return ret;
 }
 
@@ -236,6 +283,7 @@ int rk_ab_meta_get_current_slot(void)
         dbg_err("get_current_slot failed\n");
         return -1;
     }
+    dbg_info("in meta partition, current slot is slot_%c\n", rk_ab_meta_get_suffix_by_slot(ret));
 
     return ret;
 }
@@ -258,6 +306,7 @@ int rk_ab_meta_active_current_slot(void)
         dbg_err("ab_meta_write_data failed\n");
         return -1;
     }
+    dbg_info("in meta partition, current slot is slot_%c\n", rk_ab_meta_get_suffix_by_slot(ret));
 
     return ret;
 }
@@ -277,8 +326,11 @@ int rk_ab_meta_active_another_slot(void)
         dbg_err("invalid slot(%d)\n", ret);
         return -1;
     }
-    current_slot = ret;
-
+    current_slot = rk_ab_meta_get_running_slot();
+    if (current_slot < 0 || (current_slot > ARRAY_SIZE(ab_meta_data.slots))) {
+        dbg_err("invalid current_slot=%d\n", current_slot);
+        return -1;
+    }
     ab_meta_data.slots[current_slot].priority = AB_META_MAX_PRIORITY - 1;
     ab_meta_data.slots[1 - current_slot].priority = AB_META_MAX_PRIORITY;
     ab_meta_data.slots[1 - current_slot].tries_remaining = AB_META_MAX_TRIES_REMAINING;
@@ -292,6 +344,7 @@ int rk_ab_meta_active_another_slot(void)
         dbg_err("ab_meta_write_data failed\n");
         return -1;
     }
+    dbg_info("switched to slot_%c\n", rk_ab_meta_get_suffix_by_slot(!current_slot));
 
     return ret;
 }

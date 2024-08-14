@@ -29,6 +29,8 @@ typedef struct {
     dl_flash_type_t flash_type;          /**< flash type */
 } dl_flash_info_t;
 
+#define RK_FLASH_PROC_CMDLINE    "/proc/cmdline"
+
 int dl_flash_init(void);
 int dl_flash_open_by_name(const char *path);
 int dl_flash_write(int fd, uint64_t offset, const uint8_t *src_buf, uint64_t src_size);
