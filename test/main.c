@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
 {
     dbg_info("\n");
 
-#if 1
+#if 10
     int ret = 0;
     char opt = 0;
 

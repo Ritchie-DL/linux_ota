@@ -793,10 +793,13 @@ int miscUpdate(char *tar_path, char *save_dir, char *update_partition, char *ext
     else
         sprintf(partition, "%s", update_partition);
 
-    if (access(savedir, F_OK))
+    if (access(savedir, F_OK)) {
+        LOGE("\n");
         mkdir(savedir, 0755);
+    }
 
     sprintf(unpack_tar_cmd, "tar -xf %s -C %s", tar_path, savedir);
+    LOGI("unpack_tar_cmd: %s\n", unpack_tar_cmd);
     if (system(unpack_tar_cmd)) {
         LOGE("Unpack %s failed.\n", tar_path);
         return -1;
@@ -804,7 +807,7 @@ int miscUpdate(char *tar_path, char *save_dir, char *update_partition, char *ext
 
     LOGI("tar path = %s\n", tar_path);
     LOGI("save path = %s\n", savedir);
-
+#if 0
     if (flash_write(savedir, partition, extra_partition)) {
         LOGE("Write flash error, exit upgrading.\n");
         return -1;
@@ -814,7 +817,7 @@ int miscUpdate(char *tar_path, char *save_dir, char *update_partition, char *ext
         LOGE("Set slot activity failed.\n");
         return -1;
     }
-
+#endif
     return 0;
 }
 

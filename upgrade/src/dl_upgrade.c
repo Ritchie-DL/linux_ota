@@ -77,7 +77,7 @@ int rk_upgrade_init(const char *temp_dir)
     return 0;
 }
 
-static int upgrade_do_write(FILE *fp, int fd, const char *dest_part)
+static int upgrade_do_write(FILE *fp, int fd)
 {
     int ret = 0;
     dl_flash_info_t flash_info = {0};
@@ -86,14 +86,22 @@ static int upgrade_do_write(FILE *fp, int fd, const char *dest_part)
     uint32_t block_size = 0;
     size_t read_len = 0;
 
-    if (assert_ptr(fp) || assert_ptr(dest_part)) {
+    if (assert_ptr(fp)) {
         return -1;
     }
 
-    fseek(fp, 0, SEEK_END);
+    ret = fseek(fp, 0, SEEK_END);
+    if (ret < 0) {
+        dbg_err("fseek failed\n");
+        return -1;
+    }
     const size_t src_size = ftell(fp);
+    dbg_mark("ret=%d, src_size=%#X\n", ret, src_size);
     rewind(fp);
-
+    if (src_size == 0) {
+        dbg_err("invalid src_size=%u\n", src_size);
+        return -1;
+    }
     ret = dl_flash_get_info(fd, &flash_info);
     if ((ret < 0) || (flash_info.block_size == 0)) {
         dbg_err("dl_flash_get_info failed\n");
@@ -101,6 +109,8 @@ static int upgrade_do_write(FILE *fp, int fd, const char *dest_part)
         return -1;
     }
     block_size = flash_info.block_size;
+
+    dbg_info("block_size=%#X, src_size=%#X\n", block_size, src_size);
 
     buf_ptr = (uint8_t *)calloc(1, block_size + 1);
     if (assert_ptr(buf_ptr)) {
@@ -120,7 +130,7 @@ static int upgrade_do_write(FILE *fp, int fd, const char *dest_part)
             dbg_err("dl_flash_erase failed\n");
             break;
         }
-        dbg_info("writing %s offset %llX\n", dest_part, offset);
+        dbg_lo("writing offset %#llX\n", offset);
         ret = dl_flash_write(fd, offset, buf_ptr, MIN(read_len, block_size));
         if (ret < 0) {
             dbg_err("dl_flash_write failed\n");
@@ -148,21 +158,31 @@ static int upgrade_write_partition(const char *image_url, const char *dest_part)
         return ret;
     }
     dbg_mark("upgrade partition: %s\n", image_url);
+    ret = fseek(fp, 0, SEEK_END);
+    if (ret < 0) {
+        dbg_err("fseek failed\n");
+        return -1;
+    }
+    const size_t src_size = ftell(fp);
+    dbg_mark("ret=%d, src_size=%#X, dest_part: %s\n", ret, src_size, dest_part);
+    rewind(fp);
 
-    ret = dl_flash_open_by_name(image_url);
+    ret = dl_flash_open_by_name(dest_part);
     if (ret < 0) {
         dbg_err("dl_flash_open_by_name failed\n");
         fclose(fp);
         return -1;
     }
     fd = ret;
-    ret = upgrade_do_write(fp, fd, dest_part);
+    ret = upgrade_do_write(fp, fd);
     if (ret < 0) {
-        dbg_err("upgrade_do_write failed\n");
+        dbg_err("upgrade_do_write %s failed\n", dest_part);
     }
+
     dl_flash_close(fd);
     fclose(fp);
-    remove(image_url);
+
+//    remove(image_url);
 
     return ret;
 }
@@ -179,12 +199,14 @@ static int upgrade_partition(const char *part_name, const char *temp_dir, const 
     memset(src_path, 0, sizeof(src_path));
     sprintf(src_path, "%s/%s.img", temp_dir, part_name);
 
-    if (access(src_path, F_OK) == 0) {
-        ret = upgrade_write_partition(src_path, part_dest);
-        if (ret < 0) {
-            dbg_err("write %s failed.\n", part_dest);
-            return -1;
-        }
+    if (access(src_path, F_OK) != 0) {
+        dbg_lo("image %s is invalid\n", src_path);
+        return 0;
+    }
+    ret = upgrade_write_partition(src_path, part_dest);
+    if (ret < 0) {
+        dbg_err("write %s failed.\n", part_dest);
+        return -1;
     }
 
     return 0;
@@ -203,6 +225,7 @@ int rk_upgrade_packet(const char *packet)
     };
     char resolved_url[PATH_MAX] = {0};
     int slot = 0;
+    FILE *fp = NULL;
 
     if (assert_ptr(packet)) {
         return -1;
@@ -224,12 +247,29 @@ int rk_upgrade_packet(const char *packet)
         return -1;
     }
 
-    sprintf(unpack_tar_cmd, "tar -xf %s -C %s", resolved_url, g_upgrade_ctrl.temp_dir);
-    if (system(unpack_tar_cmd)) {
+//    sprintf(unpack_tar_cmd, "tar -xf %s -C %s", resolved_url, g_upgrade_ctrl.temp_dir);
+    sprintf(unpack_tar_cmd, "tar -xf %s -C %s", packet, g_upgrade_ctrl.temp_dir);
+
+    dbg_info("unpack_tar_cmd: %s\n", unpack_tar_cmd);
+    dbg_info("packet path=%s, save path=%s\n", resolved_url, g_upgrade_ctrl.temp_dir);
+
+#if 1
+    ret = system(unpack_tar_cmd);
+    if (ret < 0) {
         dbg_err("unpack %s failed.\n", resolved_url);
         return -1;
     }
-    dbg_info("packet path=%s, save path=%s\n", resolved_url, g_upgrade_ctrl.temp_dir);
+#else
+    fp = popen(unpack_tar_cmd, "r");
+    if (assert_ptr(fp)) {
+        return -1;
+    }
+    while (fgets(resolved_url, sizeof(resolved_url) - 1, fp) != NULL) {
+        dbg_info("%s", resolved_url);
+    }
+    pclose(fp);
+#endif
+    sync();
 
     for (i = 0; i < ARRAY_SIZE(part_name); i++) {
         sprintf(&dest_path[i][0], "%s/%s_%c", UPGRADE_BLOCK_PREFIX, part_name[i], rk_ab_meta_get_suffix_by_slot(!slot));

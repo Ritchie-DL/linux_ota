@@ -10,7 +10,6 @@ Created by Ritchie TangWei on 2024/8/8.
 #include "my_debug.h"
 #include "my_types.h"
 
-#define BLOCK_WRITE_LEN             512
 
 int rk_block_open(const char *block_path)
 {
@@ -28,6 +27,7 @@ int rk_block_open(const char *block_path)
 
 int rk_block_write(int fd, uint64_t offset, const uint8_t *src_buf, uint64_t src_size)
 {
+    int ret = 0;
     const uint8_t *data_buf = NULL;
     uint64_t write_count = 0;
     uint64_t idx = 0;
@@ -40,8 +40,9 @@ int rk_block_write(int fd, uint64_t offset, const uint8_t *src_buf, uint64_t src
         return -1;
     }
 
-    if (lseek64(fd, (int64_t)offset, SEEK_SET) == -1 ) {
-        dbg_err("(%s:%d) lseek64 failed(%s).\n", __func__, __LINE__, strerror(errno));
+    ret = lseek64(fd, (int64_t)offset, SEEK_SET);
+    if (ret < 0) {
+        dbg_err("lseek64 failed(%s). fd=%d, ret=%d\n", strerror(errno), fd, ret);
         return -1;
     }
     
@@ -55,8 +56,7 @@ int rk_block_write(int fd, uint64_t offset, const uint8_t *src_buf, uint64_t src
     }
 
     fsync(fd);
-    close(fd);
-    
+
     return 0;
 }
 

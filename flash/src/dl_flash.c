@@ -12,15 +12,18 @@ Created by Ritchie TangWei on 2024/8/12.
 
 #include "my_debug.h"
 
-#define FLASH_CHECK_INIT()      if (g_flash_ctrl.is_init == false) { \
-                                    dbg_err("flash not init\n"); \
-                                    return -1;               \
+#define FLASH_CHECK_INIT()      if (g_flash_ctrl.is_init == false) {    \
+                                    dbg_err("flash not init\n");        \
+                                    return -1;                          \
                                 }
 
-#define FLASH_CHECK_FD(fd)      if (fd < 0) {                        \
-                                    dbg_err("invalid  fd(%d)\n", fd);\
-                                    return -1;                       \
+#define FLASH_CHECK_FD(fd)      if (fd < 0) {                           \
+                                    dbg_err("invalid  fd(%d)\n", fd);   \
+                                    return -1;                          \
                                 }
+
+#define FLASH_DEV_PREFIX        "/dev"
+/* --------------------------------------------------------------------------------------------------------------- */
 
 typedef struct {
     int (*open)(const char *path);
@@ -84,7 +87,7 @@ int dl_flash_init(void)
             g_flash_ctrl.ops.write = rk_block_write;
             g_flash_ctrl.ops.erase = rk_block_erase;
             g_flash_ctrl.ops.close = rk_block_close;
-            g_flash_ctrl.info.block_size = 512;
+            g_flash_ctrl.info.block_size = BLOCK_WRITE_LEN;
             break;
 
         case DL_FLASH_SPI_NAND:
@@ -126,6 +129,10 @@ int dl_flash_open_by_name(const char *path)
     }
 
     FLASH_CHECK_INIT();
+    if (strcmp(path, FLASH_DEV_PREFIX) < 0) {
+        dbg_err("\n");
+        return -1;
+    }
     if (assert_ptr(g_flash_ctrl.ops.open)) {
         return -1;
     }
