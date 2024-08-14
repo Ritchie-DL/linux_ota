@@ -39,6 +39,7 @@ INCLUDE_DIRECTORIES(
         ${PROJECT_SOURCE_DIR}/ab_meta/include
         ${PROJECT_SOURCE_DIR}/flash/include
         ${PROJECT_SOURCE_DIR}/ota/include
+        ${PROJECT_SOURCE_DIR}/upgrade/include
         ${PROJECT_SOURCE_DIR}/test/app_log/include
         ${PROJECT_SOURCE_DIR}/test/openssl/include
         ${PROJECT_SOURCE_DIR}/test/utils/include
@@ -52,6 +53,7 @@ FILE(GLOB_RECURSE SRC_LISTS
         ${PROJECT_SOURCE_DIR}/ota/src/*.c
         ${PROJECT_SOURCE_DIR}/flash/src/*.c
         ${PROJECT_SOURCE_DIR}/ab_meta/src/*.c
+        ${PROJECT_SOURCE_DIR}/upgrade/src/*.c
         ${PROJECT_SOURCE_DIR}/test/app_log/src/*.c
         ${PROJECT_SOURCE_DIR}/test/utils/src/*.c
         ${PROJECT_SOURCE_DIR}/test/main.c

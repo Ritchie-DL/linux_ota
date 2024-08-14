@@ -14,7 +14,7 @@ Created by Ritchie TangWei on 2024/8/12.
 
 #define PROC_CMDLINE    "/proc/cmdline"
 
-#define FLASH_CHECK_INIT()      if (g_flash_init == false) { \
+#define FLASH_CHECK_INIT()      if (g_flash_ctrl.is_init == false) { \
                                     dbg_err("flash not init\n"); \
                                     return -1;               \
                                 }
@@ -30,15 +30,20 @@ typedef struct {
     int (*write)(int fd, uint64_t offset, const uint8_t *buffer, uint64_t length);
     int (*erase)(int fd, uint64_t offset, uint64_t length);
     int (*close)(int fd);
-} dl_flash_ops_t;
+} flash_ops_t;
 
-static dl_flash_ops_t g_flash_ops;
-static bool g_flash_init;
+typedef struct {
+    bool is_init;
+    flash_ops_t ops;
+    dl_flash_info_t info;
+} flash_ctrl_t;
+
+static flash_ctrl_t g_flash_ctrl;
 
 static dl_flash_type_t get_flash_type(void)
 {
-    char param[2048] = {0};
     int ret = 0;
+    char param[2048] = {0};
     int fd = open(PROC_CMDLINE, O_RDONLY);
     if (fd < 0) {
         dbg_err("open %s failed\n", PROC_CMDLINE);
@@ -71,27 +76,28 @@ int dl_flash_init(void)
 
     switch (flash_type) {
         case DL_FLASH_EMMC:
-            g_flash_ops.open = rk_block_open;
-            g_flash_ops.read = rk_block_read;
-            g_flash_ops.write = rk_block_write;
-            g_flash_ops.erase = rk_block_erase;
-            g_flash_ops.close = rk_block_close;
+            g_flash_ctrl.ops.open = rk_block_open;
+            g_flash_ctrl.ops.read = rk_block_read;
+            g_flash_ctrl.ops.write = rk_block_write;
+            g_flash_ctrl.ops.erase = rk_block_erase;
+            g_flash_ctrl.ops.close = rk_block_close;
+            g_flash_ctrl.info.block_size = 512;
             break;
 
         case DL_FLASH_SPI_NAND:
-            g_flash_ops.open = rk_nand_open;
-            g_flash_ops.read = rk_nand_read;
-            g_flash_ops.write = rk_nand_write;
-            g_flash_ops.erase = rk_nand_erase;
-            g_flash_ops.close = rk_nand_close;
+            g_flash_ctrl.ops.open = rk_nand_open;
+            g_flash_ctrl.ops.read = rk_nand_read;
+            g_flash_ctrl.ops.write = rk_nand_write;
+            g_flash_ctrl.ops.erase = rk_nand_erase;
+            g_flash_ctrl.ops.close = rk_nand_close;
             break;
 
         case DL_FLASH_SPI_NOR:
-            g_flash_ops.open = rk_nor_open;
-            g_flash_ops.read = rk_nor_read;
-            g_flash_ops.write = rk_nor_write;
-            g_flash_ops.erase = rk_nor_erase;
-            g_flash_ops.close = rk_nor_close;
+            g_flash_ctrl.ops.open = rk_nor_open;
+            g_flash_ctrl.ops.read = rk_nor_read;
+            g_flash_ctrl.ops.write = rk_nor_write;
+            g_flash_ctrl.ops.erase = rk_nor_erase;
+            g_flash_ctrl.ops.close = rk_nor_close;
             break;
 
         default:
@@ -99,11 +105,11 @@ int dl_flash_init(void)
             return -1;
     }
 
-    if (assert_ptr(g_flash_ops.open) || assert_ptr(g_flash_ops.read) || assert_ptr(g_flash_ops.write) ||
-        assert_ptr(g_flash_ops.erase) || assert_ptr(g_flash_ops.close)) {
+    if (assert_ptr(g_flash_ctrl.ops.open) || assert_ptr(g_flash_ctrl.ops.read) || assert_ptr(g_flash_ctrl.ops.write) ||
+        assert_ptr(g_flash_ctrl.ops.erase) || assert_ptr(g_flash_ctrl.ops.close)) {
         return -1;
     }
-    g_flash_init = true;
+    g_flash_ctrl.is_init = true;
 
     return ret;
 }
@@ -117,12 +123,12 @@ int dl_flash_open_by_name(const char *path)
     }
 
     FLASH_CHECK_INIT();
-    if (assert_ptr(g_flash_ops.open)) {
+    if (assert_ptr(g_flash_ctrl.ops.open)) {
         return -1;
     }
-    ret = g_flash_ops.open(path);
+    ret = g_flash_ctrl.ops.open(path);
     if (ret < 0) {
-        dbg_err("rk_block_open %s failed\n", path);
+        dbg_err("flash open %s failed\n", path);
         return -1;
     }
 
@@ -135,12 +141,30 @@ int dl_flash_write(int fd, uint64_t offset, const uint8_t *src_buf, uint64_t src
 
     FLASH_CHECK_INIT();
     FLASH_CHECK_FD(fd);
-    if (assert_ptr(g_flash_ops.write)) {
+    if (assert_ptr(g_flash_ctrl.ops.write)) {
         return -1;
     }
-    ret = g_flash_ops.write(fd, offset, src_buf, src_size);
+    ret = g_flash_ctrl.ops.write(fd, offset, src_buf, src_size);
     if (ret < 0) {
-        dbg_err("rk_block_write failed\n");
+        dbg_err("flash write failed\n");
+        return -1;
+    }
+
+    return ret;
+}
+
+int dl_flash_erase(int fd, uint64_t offset, uint64_t src_size)
+{
+    int ret = 0;
+
+    FLASH_CHECK_INIT();
+    FLASH_CHECK_FD(fd);
+    if (assert_ptr(g_flash_ctrl.ops.erase)) {
+        return -1;
+    }
+    ret = g_flash_ctrl.ops.erase(fd, offset, src_size);
+    if (ret < 0) {
+        dbg_err("flash erase failed\n");
         return -1;
     }
 
@@ -154,12 +178,12 @@ int dl_flash_read(int fd, uint64_t offset, uint8_t *dest_buf, uint64_t dest_size
     FLASH_CHECK_INIT();
     FLASH_CHECK_FD(fd);
 
-    if (assert_ptr(g_flash_ops.read)) {
+    if (assert_ptr(g_flash_ctrl.ops.read)) {
         return -1;
     }
-    ret = g_flash_ops.read(fd, offset, dest_buf, dest_size);
+    ret = g_flash_ctrl.ops.read(fd, offset, dest_buf, dest_size);
     if (ret < 0) {
-        dbg_err("rk_block_read failed\n");
+        dbg_err("flash read failed\n");
         return -1;
     }
 
@@ -173,17 +197,28 @@ int dl_flash_close(int fd)
     FLASH_CHECK_INIT();
     FLASH_CHECK_FD(fd);
 
-    if (assert_ptr(g_flash_ops.close)) {
+    if (assert_ptr(g_flash_ctrl.ops.close)) {
         return -1;
     }
-    ret = g_flash_ops.close(fd);
+    ret = g_flash_ctrl.ops.close(fd);
 
     return ret;
 }
 
+int dl_flash_get_info(int fd, dl_flash_info_t *info)
+{
+    if (assert_ptr(info)) {
+        return -1;
+    }
+    FLASH_CHECK_INIT();
+    FLASH_CHECK_FD(fd);
+    memcpy(info, &g_flash_ctrl.info, sizeof(g_flash_ctrl.info));
+
+    return 0;
+}
+
 int dl_flash_deinit(void)
 {
-    g_flash_init = false;
-
+    g_flash_ctrl.is_init = false;
     return 0;
 }
