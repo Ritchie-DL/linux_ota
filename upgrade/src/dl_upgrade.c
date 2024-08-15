@@ -130,14 +130,13 @@ static int upgrade_do_write(FILE *fp, int fd)
             dbg_err("dl_flash_erase failed\n");
             break;
         }
-        dbg_lo("writing offset %#llX\n", offset);
         ret = dl_flash_write(fd, offset, buf_ptr, MIN(read_len, block_size));
         if (ret < 0) {
             dbg_err("dl_flash_write failed\n");
             break;
         }
     }
-
+    fsync(fd);
     free(buf_ptr);
 
     return ret;

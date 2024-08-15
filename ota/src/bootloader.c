@@ -32,6 +32,8 @@
 
 #include "md5sum.h"
 #include "../../flash/src/mtd_flash.h"
+#include "my_debug.h"
+
 // ------------------------------------
 // for misc partitions on block devices
 // ------------------------------------
@@ -443,6 +445,7 @@ static int block_write(char *src_path, long long size, char *dest_path)
         close(fd_dest);
         return -1;
     }
+    dbg_mark("writing %s to %s with %#llX bytes\n", src_path, dest_path, src_remain);
     while (src_remain > 0 && dest_remain > 0) {
         memset(data_buf, 0, BLOCK_WRITE_LEN);
         read_count = src_remain>src_step?src_step:src_remain;
@@ -456,7 +459,7 @@ static int block_write(char *src_path, long long size, char *dest_path)
 
         src_remain -= read_count;
         write_count = dest_remain>dest_step?dest_step:dest_remain;
-
+        dbg_info("write_count=%#llX, src_remain=%#llX\n", write_count, src_remain);
         if (write(fd_dest, data_buf, write_count) != write_count) {
             close(fd_dest);
             close(fd_src);
@@ -465,7 +468,7 @@ static int block_write(char *src_path, long long size, char *dest_path)
         }
         dest_remain -= write_count;
     }
-
+    dbg_mark("written\n");
     fsync(fd_dest);
     close(fd_dest);
     close(fd_src);
@@ -799,14 +802,14 @@ int miscUpdate(char *tar_path, char *save_dir, char *update_partition, char *ext
     }
 
     sprintf(unpack_tar_cmd, "tar -xf %s -C %s", tar_path, savedir);
-    LOGI("unpack_tar_cmd: %s\n", unpack_tar_cmd);
+    dbg_info("unpack_tar_cmd: %s\n", unpack_tar_cmd);
     if (system(unpack_tar_cmd)) {
         LOGE("Unpack %s failed.\n", tar_path);
         return -1;
     }
 
-    LOGI("tar path = %s\n", tar_path);
-    LOGI("save path = %s\n", savedir);
+    dbg_info("tar path = %s\n", tar_path);
+    dbg_info("save path = %s\n", savedir);
 
     if (flash_write(savedir, partition, extra_partition)) {
         LOGE("Write flash error, exit upgrading.\n");
