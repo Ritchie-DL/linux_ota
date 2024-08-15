@@ -14,22 +14,25 @@ Created by Ritchie TangWei on 2024/8/13.
 
 #include "my_debug.h"
 #include "rk_ab_meta.h"
-#include "../../ota/src/common.h"
 #include "dl_flash.h"
 #include "my_types.h"
 
-#define UPGRADE_BLOCK_PREFIX  "/dev/block/by-name"
-#define UPGRADE_VALID_DIR_PREFIX "/userdata"
-#define AB_UBOOT_NAME "uboot"
-#define AB_BOOT_NAME "boot"
-#define AB_ROOTFS_NAME "system"
+#define UPGRADE_BLOCK_PREFIX            "/dev/block/by-name"
+#define UPGRADE_VALID_DIR_PREFIX        "/userdata"
+
+#define UPGRADE_UBOOT_NAME              "uboot"
+#define UPGRADE_BOOT_NAME               "boot"
+#define UPGRADE_ROOTFS_NAME             "system"
 
 #define UPGARDE_PARTITION_MAX                   4
 #define UPGARDE_DIR_PATH_MAX                    128
 
 typedef struct {
     bool is_init;
+    char backup_dir[UPGARDE_DIR_PATH_MAX];
     char temp_dir[UPGARDE_DIR_PATH_MAX];
+    size_t total_size;
+    size_t written_size;
     pthread_mutex_t mutex;
 } upgrade_ctrl_t;
 
@@ -43,10 +46,11 @@ static upgrade_ctrl_t g_upgrade_ctrl;
 /* ------------------------------------------------------------------------------------------------------------------
  * call this function in advance is a must
  ------------------------------------------------------------------------------------------------------------------ */
-int rk_upgrade_init(const char *temp_dir)
+int rk_upgrade_init(const char *backup_dir, const char *temp_dir)
 {
     int ret = 0;
-    char resolved_path[PATH_MAX] = {0};
+    char full_temp_path[PATH_MAX] = {0};
+    char full_backup_path[PATH_MAX] = {0};
 
     if (assert_ptr(temp_dir)) {
         return -1;
@@ -56,25 +60,53 @@ int rk_upgrade_init(const char *temp_dir)
         return 0;
     }
 
-    if (realpath(temp_dir, resolved_path) == NULL) {
+    if (realpath(backup_dir, full_backup_path) == NULL) {
+        dbg_err("realpath for %s failed\n", backup_dir);
+        return -1;
+    }
+
+    if (realpath(temp_dir, full_temp_path) == NULL) {
         dbg_err("realpath for %s failed\n", temp_dir);
         return -1;
     }
-    if (strcmp(resolved_path, UPGRADE_VALID_DIR_PREFIX) < 0) {
-        dbg_err("%s not a valid direction\n", resolved_path);
+    if (strcmp(full_backup_path, UPGRADE_VALID_DIR_PREFIX) < 0) {
+        dbg_err("%s not a valid direction\n", full_backup_path);
         return -1;
     }
-    if (access(resolved_path, F_OK) != 0) {
-        ret = mkdir(resolved_path, 0755);
+    if (strcmp(full_temp_path, UPGRADE_VALID_DIR_PREFIX) < 0) {
+        dbg_err("%s not a valid direction\n", full_temp_path);
+        return -1;
+    }
+    if (access(full_backup_path, F_OK) != 0) {
+        ret = mkdir(full_backup_path, 0755);
         if (ret < 0) {
-            dbg_err("mkdir for %s failed\n", resolved_path);
+            dbg_err("mkdir for %s failed\n", full_backup_path);
+            return -1;
         }
     }
-    snprintf(g_upgrade_ctrl.temp_dir, sizeof(g_upgrade_ctrl.temp_dir) - 1, "%s", resolved_path);
+    if (access(full_temp_path, F_OK) != 0) {
+        ret = mkdir(full_temp_path, 0755);
+        if (ret < 0) {
+            dbg_err("mkdir for %s failed\n", full_temp_path);
+            return -1;
+        }
+    }
+    snprintf(g_upgrade_ctrl.backup_dir, sizeof(g_upgrade_ctrl.backup_dir) - 1, "%s", full_backup_path);
+    snprintf(g_upgrade_ctrl.temp_dir, sizeof(g_upgrade_ctrl.temp_dir) - 1, "%s", full_temp_path);
 
     g_upgrade_ctrl.is_init = true;
 
     return 0;
+}
+
+static void upgrade_report_progress(uint32_t count)
+{
+    hi_eventhub_t event = {0};
+
+    g_upgrade_ctrl.written_size += count;
+    event.event_id = RK_UPGRADE_REPORT_PROGRESS;
+    event.key_value = g_upgrade_ctrl.written_size * 100 / g_upgrade_ctrl.total_size;
+    hi_eventhub_publish(&event);
 }
 
 static int upgrade_do_write(FILE *fp, int fd)
@@ -181,7 +213,7 @@ static int upgrade_write_partition(const char *image_url, const char *dest_part)
     dl_flash_close(fd);
     fclose(fp);
 
-//    remove(image_url);
+    remove(image_url);
 
     return ret;
 }
@@ -215,16 +247,17 @@ int rk_upgrade_packet(const char *packet)
 {
     int ret = 0;
     uint32_t i = 0;
-    char unpack_tar_cmd[UPGARDE_DIR_PATH_MAX] = {0};
+    char unpack_cmd[UPGARDE_DIR_PATH_MAX] = {0};
     char dest_path[UPGARDE_PARTITION_MAX][UPGARDE_DIR_PATH_MAX] = {0};
     const char *part_name[] = {
-            AB_UBOOT_NAME,
-            AB_BOOT_NAME,
-            AB_ROOTFS_NAME,
+            UPGRADE_UBOOT_NAME,
+            UPGRADE_BOOT_NAME,
+            UPGRADE_ROOTFS_NAME,
     };
     char resolved_url[PATH_MAX] = {0};
     int slot = 0;
     FILE *fp = NULL;
+    hi_eventhub_t event = {0};
 
     if (assert_ptr(packet)) {
         return -1;
@@ -246,25 +279,27 @@ int rk_upgrade_packet(const char *packet)
         return -1;
     }
 
-//    sprintf(unpack_tar_cmd, "tar -xf %s -C %s", resolved_url, g_upgrade_ctrl.temp_dir);
-    sprintf(unpack_tar_cmd, "tar -xf %s -C %s", packet, g_upgrade_ctrl.temp_dir);
+    sprintf(unpack_cmd, "tar -xf %s -C %s", packet, g_upgrade_ctrl.temp_dir);
 
-    dbg_info("unpack_tar_cmd: %s\n", unpack_tar_cmd);
-    dbg_info("packet path=%s, save path=%s\n", resolved_url, g_upgrade_ctrl.temp_dir);
+    dbg_info("unpack_cmd: %s\n", unpack_cmd);
+    dbg_lo("packet path=%s, save path=%s\n", resolved_url, g_upgrade_ctrl.temp_dir);
 
 #if 1
-    ret = system(unpack_tar_cmd);
+    ret = system(unpack_cmd);
     if (ret < 0) {
         dbg_err("unpack %s failed.\n", resolved_url);
+        event.event_id = RK_UPGRADE_RESULT_FAILURE;
+        event.result = -1;
+        hi_eventhub_publish(&event);
         return -1;
     }
 #else
-    fp = popen(unpack_tar_cmd, "r");
+    fp = popen(unpack_cmd, "r");
     if (assert_ptr(fp)) {
         return -1;
     }
     while (fgets(resolved_url, sizeof(resolved_url) - 1, fp) != NULL) {
-        dbg_info("%s", resolved_url);
+        dbg_lo("%s", resolved_url);
     }
     pclose(fp);
 #endif
@@ -280,8 +315,13 @@ int rk_upgrade_packet(const char *packet)
     }
     if (ret >= 0) {
         dbg_mark("upgrade finish, active another slot\n");
+        event.event_id = RK_UPGRADE_RESULT_SUCCESS;
         rk_ab_meta_active_another_slot();
+    } else {
+        event.event_id = RK_UPGRADE_RESULT_FAILURE;
     }
+    hi_eventhub_publish(&event);
+
     return ret;
 }
 

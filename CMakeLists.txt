@@ -41,11 +41,13 @@ INCLUDE_DIRECTORIES(
         ${PROJECT_SOURCE_DIR}/ota/include
         ${PROJECT_SOURCE_DIR}/upgrade/include
         ${PROJECT_SOURCE_DIR}/test/app_log/include
+        ${PROJECT_SOURCE_DIR}/test/eventhub/include
         ${PROJECT_SOURCE_DIR}/test/openssl/include
         ${PROJECT_SOURCE_DIR}/test/utils/include
 )
 
 LINK_DIRECTORIES(
+        ${PROJECT_SOURCE_DIR}/test/eventhub/lib
         ${PROJECT_SOURCE_DIR}/test/openssl/lib
 )
 
@@ -62,6 +64,7 @@ FILE(GLOB_RECURSE SRC_LISTS
 ADD_EXECUTABLE(${target_bin} ${SRC_LISTS})
 
 TARGET_LINK_LIBRARIES(${target_bin}
+        eventhub
         ssl
         crypto
 )

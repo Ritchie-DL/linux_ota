@@ -5,11 +5,13 @@
 #include <getopt.h>
 #include <sys/reboot.h>
 
-#include "bootloader.h"
 #include "my_debug.h"
 #include "dl_flash.h"
 #include "rk_ab_meta.h"
 #include "dl_upgrade.h"
+
+#if 0
+#include "bootloader.h"
 
 typedef enum{
     RK_UPGRADE_FINISHED,
@@ -75,54 +77,11 @@ int test_read_misc(void)
     dbg_info("local crc32: %x.\n", info_ab.crc32);
     dbg_info("sizeof(struct AvbABData) = %ld\n", sizeof(struct AvbABData));
 
-
     return 0;
 }
 
 int main(int argc, char *argv[])
 {
-    dbg_info("\n");
-
-#if 1
-    int ret = 0;
-    char opt = 0;
-
-//    dl_log_config(true, true, HI_LOG_LEVEL_DEBUG);
-    dl_flash_init();
-
-    if ((argc > 1) && (argv[1][0] == '-')) {
-        opt = argv[1][1];
-    }
-    switch (opt) {
-        case 'g':
-            rk_ab_meta_get_current_slot();
-            break;
-
-        case 'r':
-            test_read_misc();
-            break;
-
-        case 'u':
-            if (argc != 4) {
-                dbg_err("usage: ./test -u packet_file.tar temp_dir\n");
-                break;
-            }
-            rk_upgrade_init(argv[3]);
-
-            rk_upgrade_packet(argv[2]);
-            break;
-
-        case 's':
-            dbg_info("try active another slot\n");
-            rk_ab_meta_active_another_slot();
-            break;
-
-        default:
-            rk_ab_meta_get_running_slot();
-            break;
-    }
-    dl_flash_deinit();
-#else
     int ret = 0;
     int arg;
     char *tar_path = NULL;
@@ -192,7 +151,64 @@ int main(int argc, char *argv[])
         reboot(RB_AUTOBOOT);
         // system(" echo b > /proc/sysrq-trigger ");
     }
-#endif
 
     return m_status;
 }
+
+#else
+
+#define UPGRADE_BACKUP_DIR  "/userdata/upgrade/backup"
+#define UPGRADE_TEMP_DIR    "/userdata/upgrade/temp"
+
+static int test_read_misc()
+{
+    return 0;
+}
+
+int main(int argc, char *argv[])
+{
+    dbg_info("\n");
+
+    int ret = 0;
+    char opt = 0;
+
+//    dl_log_config(true, true, HI_LOG_LEVEL_DEBUG);
+    hi_eventhub_init();
+    dl_flash_init();
+
+    if ((argc > 1) && (argv[1][0] == '-')) {
+        opt = argv[1][1];
+    }
+    switch (opt) {
+        case 'g':
+            rk_ab_meta_get_current_slot();
+            break;
+
+        case 'r':
+            test_read_misc();
+            break;
+
+        case 'u':
+            if (argc != 3) {
+                dbg_err("usage: ./test -u packet_file.tar\n");
+                break;
+            }
+            rk_upgrade_init(UPGRADE_BACKUP_DIR, UPGRADE_TEMP_DIR);
+            rk_upgrade_packet(argv[2]);
+            break;
+
+        case 's':
+            dbg_info("try active another slot\n");
+            rk_ab_meta_active_another_slot();
+            break;
+
+        default:
+            rk_ab_meta_get_running_slot();
+            break;
+    }
+    dl_flash_deinit();
+
+    return 0;
+
+}
+#endif

@@ -25,8 +25,6 @@
 #include <sys/mount.h>  // for _IOW, _IOR, mount()
 #include <sys/stat.h>
 #include <mtd/mtd-user.h>
-#undef NDEBUG
-#include <assert.h>
 
 #include "my_debug.h"
 
