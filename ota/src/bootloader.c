@@ -807,7 +807,7 @@ int miscUpdate(char *tar_path, char *save_dir, char *update_partition, char *ext
 
     LOGI("tar path = %s\n", tar_path);
     LOGI("save path = %s\n", savedir);
-#if 0
+
     if (flash_write(savedir, partition, extra_partition)) {
         LOGE("Write flash error, exit upgrading.\n");
         return -1;
@@ -817,7 +817,7 @@ int miscUpdate(char *tar_path, char *save_dir, char *update_partition, char *ext
         LOGE("Set slot activity failed.\n");
         return -1;
     }
-#endif
+
     return 0;
 }
 

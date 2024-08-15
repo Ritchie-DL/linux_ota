@@ -11,7 +11,8 @@ Created by Ritchie TangWei on 2024/8/8.
 extern "C" {
 #endif
 
-#define BLOCK_WRITE_LEN             512
+//#define BLOCK_WRITE_LEN             512
+#define BLOCK_WRITE_LEN             4096
 
 int rk_block_open(const char *block_path);
 int rk_block_write(int fd, uint64_t offset, const uint8_t *src_buf, uint64_t src_size);

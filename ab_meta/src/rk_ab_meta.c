@@ -119,7 +119,7 @@ static int ab_meta_read_data(rk_ab_meta_data_t *data)
         dbg_err("dl_flash_open_by_name failed\n");
         return -1;
     }
-    ret = dl_flash_read(fd, META_DATA_OFFSET, (uint8_t *) data, sizeof(rk_ab_meta_data_t));
+    ret = dl_flash_read(fd, META_DATA_OFFSET, (uint8_t *)data, sizeof(rk_ab_meta_data_t));
     if (ret < 0) {
         dbg_err("dl_flash_read failed\n");
         dl_flash_close(fd);

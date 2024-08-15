@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
     int ret = 0;
     char opt = 0;
 
-    dl_log_config(true, true, HI_LOG_LEVEL_DEBUG);
+//    dl_log_config(true, true, HI_LOG_LEVEL_DEBUG);
     dl_flash_init();
 
     if ((argc > 1) && (argv[1][0] == '-')) {

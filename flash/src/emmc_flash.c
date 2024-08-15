@@ -10,13 +10,12 @@ Created by Ritchie TangWei on 2024/8/8.
 #include "my_debug.h"
 #include "my_types.h"
 
-
 int rk_block_open(const char *block_path)
 {
     if (assert_ptr(block_path)) {
         return -1;
     }
-    int fd = open(block_path, O_RDWR | O_CREAT | O_TRUNC, 0644);
+    int fd = open(block_path, O_RDWR, 0644);
     if (fd < 0) {
         dbg_err("Can't open %s\n", block_path);
         return -1;
@@ -48,9 +47,10 @@ int rk_block_write(int fd, uint64_t offset, const uint8_t *src_buf, uint64_t src
     
     for (idx = 0; idx < src_size; idx += BLOCK_WRITE_LEN) {
         data_buf = &src_buf[idx];
-        write_count = MIN(src_size - BLOCK_WRITE_LEN, BLOCK_WRITE_LEN);
-        if (write(fd, data_buf, write_count) != write_count) {
-            dbg_err("(%s:%d) write failed(%s).\n", __func__, __LINE__, strerror(errno));
+        write_count = MIN(src_size - idx, BLOCK_WRITE_LEN);
+        ret = write(fd, data_buf, write_count);
+        if (ret != write_count) {
+            dbg_err("fd=%d, ret=%d, count=%lld, write failed(%s).\n",  fd, ret, write_count, strerror(errno));
             return -1;
         }
     }
@@ -80,7 +80,7 @@ int rk_block_read(int fd, uint64_t offset, uint8_t *dest_buf, uint64_t dest_size
 
     int count = read(fd, dest_buf, dest_size);
     if (count != dest_size) {
-        dbg_err("count=%#X, dest_size=%#X, reading failed(%s)\n", count, dest_size, strerror(errno));
+        dbg_err("count=%d, dest_size=%#X, reading failed(%s)\n", count, dest_size, strerror(errno));
         return -1;
     }
 
